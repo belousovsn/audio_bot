@@ -1,6 +1,6 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, CallbackQueryHandler, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, CallbackQueryHandler, filters
 import speech_recognition as sr
 from pydub import AudioSegment
 import openai
@@ -12,6 +12,9 @@ import whisper
 
 # Настройка логирования
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+# Установите уровень логирования для httpx на WARNING, чтобы скрыть информационные сообщения
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Загрузка конфигурации
 config = configparser.ConfigParser()
@@ -31,17 +34,16 @@ conn.commit()
 # Set the path to the ffmpeg executable
 AudioSegment.converter = r"C:\Users\ser\AppData\Local\ffmpegio\ffmpeg-downloader\ffmpeg\bin\ffmpeg.exe"
 
-# Check for -test parameter
+# Check for -test and -local parameters
 is_test_mode = '-test' in sys.argv
-
-# Check for -local parameter
 is_local_mode = '-local' in sys.argv
 
 # Функция для транскрипции аудио с использованием Whisper
 def transcribe_audio(file_path):
     try:
         logging.info(f"Начало транскрипции аудио с Whisper: {file_path}")
-        model = whisper.load_model("large")  # Use the large model
+        model_name = "base" if is_test_mode else "large"  # Используем базовую модель в тестовом режиме
+        model = whisper.load_model(model_name)  # Use the appropriate model
         result = model.transcribe(file_path)
         text = result['text']
         logging.info("Транскрипция с Whisper завершена успешно.")
@@ -78,9 +80,9 @@ def split_message(message, max_length=4096):
     return [message[i:i + max_length] for i in range(0, len(message), max_length)]
 
 # Обработчик нажатия кнопки
-def button(update: Update, context: CallbackContext) -> None:
+async def button(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
-    query.answer()
+    await query.answer()  # Используем await
 
     if query.data == 'get_unread':
         c.execute("SELECT * FROM messages WHERE read_status=0 ORDER BY date ASC")
@@ -90,21 +92,28 @@ def button(update: Update, context: CallbackContext) -> None:
                 full_message = f"Автор: {message[1]}\nКраткий пересказ: {message[2]}\nОбработанный текст: {message[3]}"
                 # Split the message if it's too long
                 message_chunks = split_message(full_message)
+                all_sent = True  # Флаг для проверки успешности отправки всех частей сообщения
                 for chunk in message_chunks:
-                    query.message.reply_text(chunk)
-                c.execute("UPDATE messages SET read_status=1 WHERE date=?", (message[0],))
+                    try:
+                        await query.message.reply_text(chunk)  # Используем await
+                    except Exception as e:
+                        logging.error(f"Ошибка отправки сообщения: {e}")
+                        all_sent = False
+                        break
+                if all_sent:
+                    c.execute("UPDATE messages SET read_status=1 WHERE date= ?", (message[0],))
             conn.commit()
         else:
-            query.message.reply_text("Нет непрочитанных сообщений.")
+            await query.message.reply_text("Нет непрочитанных сообщений.")  # Используем await
 
 # Обработчик новых сообщений
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_message(update: Update, context: CallbackContext) -> None:
     voice = update.message.voice
     if voice:
         # Скачиваем аудиофайл
-        file = context.bot.get_file(voice.file_id)
+        file = await context.bot.get_file(voice.file_id)  # Используем await
         file_path = "voice.ogg"
-        file.download(file_path)
+        await file.download_to_drive(file_path)  # Используем правильный метод для загрузки
 
         # Транскрибируем аудио
         text = transcribe_audio(file_path)
@@ -122,7 +131,7 @@ def handle_message(update: Update, context: CallbackContext) -> None:
                   (update.message.date, update.message.from_user.username, summary, processed_text, 0))
         conn.commit()
 
-        update.message.reply_text("Сообщение обработано и сохранено в базе данных.")
+        await update.message.reply_text("Сообщение обработано и сохранено в базе данных.")  # Используем await
 
         # Удаляем временные файлы, если не в режиме тестирования
         if not is_test_mode:
@@ -130,17 +139,17 @@ def handle_message(update: Update, context: CallbackContext) -> None:
                 os.remove(file_path)
 
 def main():
-    # Используем токен из конфигурации
-    updater = Updater(TELEGRAM_BOT_TOKEN)
+    # Create a Bot instance
+    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    
+    # Initialize the Application with the Bot instance
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    dispatcher = updater.dispatcher
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.VOICE, handle_message))
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CallbackQueryHandler(button))
-    dispatcher.add_handler(MessageHandler(filters.VOICE, handle_message))
-
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == '__main__':
     main() 
