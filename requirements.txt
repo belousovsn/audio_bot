@@ -1,0 +1,4 @@
+python-telegram-bot
+pydub
+SpeechRecognition
+openai==0.28 
