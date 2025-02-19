@@ -1,6 +1,6 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext, CallbackQueryHandler, filters
 import speech_recognition as sr
 from pydub import AudioSegment
 import openai
@@ -137,7 +137,7 @@ def main():
 
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CallbackQueryHandler(button))
-    dispatcher.add_handler(MessageHandler(Filters.voice, handle_message))
+    dispatcher.add_handler(MessageHandler(filters.VOICE, handle_message))
 
     updater.start_polling()
     updater.idle()
