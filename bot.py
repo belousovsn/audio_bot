@@ -34,6 +34,9 @@ conn.commit()
 # Set the path to the ffmpeg executable
 AudioSegment.converter = r"C:\Users\ser\AppData\Local\ffmpegio\ffmpeg-downloader\ffmpeg\bin\ffmpeg.exe"
 
+# Глобальные переменные для хранения текущих режимов
+current_modes = set()
+
 # Check for -test and -local parameters
 is_test_mode = '-test' in sys.argv
 is_local_mode = '-local' in sys.argv
@@ -70,10 +73,10 @@ def process_text(text):
         return "", text
 
 # Обработчик команды /start
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     keyboard = [[InlineKeyboardButton("Получить непрочитанные сообщения", callback_data='get_unread')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text('Привет! Я ваш бот для обработки голосовых сообщений.', reply_markup=reply_markup)
+    await update.message.reply_text('Привет! Я ваш бот для обработки голосовых сообщений.', reply_markup=reply_markup)
 
 # Function to split a message into chunks
 def split_message(message, max_length=4096):
@@ -106,19 +109,54 @@ async def button(update: Update, context: CallbackContext) -> None:
         else:
             await query.message.reply_text("Нет непрочитанных сообщений.")  # Используем await
 
+# Обработчик команды для изменения режимов
+async def change_mode(update: Update, context: CallbackContext) -> None:
+    global current_modes
+    message_text = update.message.text.lower()
+
+    # Логирование полученной команды
+    logging.info(f"Получена команда изменения режима: {message_text}")
+
+    if "set mode local" in message_text:
+        current_modes.add("local")
+        await update.message.reply_text("Режим 'local' активирован.")
+        logging.info("Режим 'local' активирован.")
+    if "set mode test" in message_text:
+        current_modes.add("test")
+        await update.message.reply_text("Режим 'test' активирован.")
+        logging.info("Режим 'test' активирован.")
+    if "set mode default" in message_text:
+        current_modes.clear()
+        await update.message.reply_text("Режимы сброшены до значений по умолчанию.")
+        logging.info("Режимы сброшены до значений по умолчанию.")
+
+    # Обновление переменных is_local_mode и is_test_mode
+    is_local_mode = "local" in current_modes
+    is_test_mode = "test" in current_modes
+
+    if not current_modes:
+        await update.message.reply_text("Неизвестная команда. Используйте 'set mode local', 'set mode test', 'set mode default', или их комбинации.")
+        logging.info("Неизвестная команда получена.")
+
+# Обработчик текстовых сообщений для изменения режимов
+async def handle_text(update: Update, context: CallbackContext) -> None:
+    message_text = update.message.text.lower()
+    if "set mode" in message_text:
+        await change_mode(update, context)
+
 # Обработчик новых сообщений
 async def handle_message(update: Update, context: CallbackContext) -> None:
     voice = update.message.voice
     if voice:
         # Скачиваем аудиофайл
-        file = await context.bot.get_file(voice.file_id)  # Используем await
+        file = await context.bot.get_file(voice.file_id)
         file_path = "voice.ogg"
-        await file.download_to_drive(file_path)  # Используем правильный метод для загрузки
+        await file.download_to_drive(file_path)
 
         # Транскрибируем аудио
         text = transcribe_audio(file_path)
 
-        if is_local_mode:
+        if "local" in current_modes:
             # В локальном режиме используем транскрипцию как обработанный текст
             summary = "<none>"
             processed_text = text
@@ -131,10 +169,10 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                   (update.message.date, update.message.from_user.username, summary, processed_text, 0))
         conn.commit()
 
-        await update.message.reply_text("Сообщение обработано и сохранено в базе данных.")  # Используем await
+        await update.message.reply_text("Сообщение обработано и сохранено в базе данных.")
 
         # Удаляем временные файлы, если не в режиме тестирования
-        if not is_test_mode:
+        if "test" not in current_modes:
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -147,6 +185,7 @@ def main():
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))  # Обработчик текстовых сообщений
     application.add_handler(MessageHandler(filters.VOICE, handle_message))
 
     application.run_polling()
