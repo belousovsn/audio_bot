@@ -1,4 +1,5 @@
 python-telegram-bot>=20.0
 pydub
 SpeechRecognition
-openai==0.28 
+openai==0.28
+openai-whisper 

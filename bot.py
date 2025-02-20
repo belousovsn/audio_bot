@@ -37,17 +37,25 @@ AudioSegment.converter = r"C:\Users\ser\AppData\Local\ffmpegio\ffmpeg-downloader
 # Глобальные переменные для хранения текущих режимов
 current_modes = set()
 
+# Глобальная переменная для хранения модели Whisper
+whisper_model = None
+
 # Check for -test and -local parameters
 is_test_mode = '-test' in sys.argv
 is_local_mode = '-local' in sys.argv
+
+# Функция для загрузки модели Whisper
+def load_whisper_model():
+    global whisper_model
+    model_name = "base" if is_test_mode else "large"  # Используем базовую модель в тестовом режиме
+    whisper_model = whisper.load_model(model_name)  # Загрузка модели
+    logging.info(f"Модель Whisper '{model_name}' загружена.")
 
 # Функция для транскрипции аудио с использованием Whisper
 def transcribe_audio(file_path):
     try:
         logging.info(f"Начало транскрипции аудио с Whisper: {file_path}")
-        model_name = "base" if is_test_mode else "large"  # Используем базовую модель в тестовом режиме
-        model = whisper.load_model(model_name)  # Use the appropriate model
-        result = model.transcribe(file_path)
+        result = whisper_model.transcribe(file_path)  # Используем загруженную модель
         text = result['text']
         logging.info("Транскрипция с Whisper завершена успешно.")
         return text
@@ -177,6 +185,9 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 os.remove(file_path)
 
 def main():
+    # Загрузка модели Whisper при инициализации
+    load_whisper_model()
+
     # Create a Bot instance
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     
