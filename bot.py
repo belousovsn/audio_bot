@@ -47,17 +47,9 @@ is_local_mode = '-local' in sys.argv
 # Функция для загрузки модели Whisper
 def load_whisper_model():
     global whisper_model
-    model_name = "base" if is_test_mode else "large"
-    
-    # Проверка наличия модели
-    model_path = os.path.join(os.path.expanduser('~'), '.cache', 'whisper', f'{model_name}.pt')
-    if not os.path.exists(model_path):
-        logging.info(f"Модель {model_name} не найдена. Начинаем загрузку...")
-        whisper_model = whisper.load_model(model_name)
-        logging.info(f"Модель Whisper '{model_name}' успешно загружена.")
-    else:
-        logging.info(f"Используем существующую модель {model_name} из кэша")
-        whisper_model = whisper.load_model(model_name, download_root='/root/.cache/whisper')
+    model_name = "base"  # Используем base вместо large
+    logging.info(f"Загружаем модель Whisper '{model_name}'...")
+    whisper_model = whisper.load_model(model_name)
 
 # Функция для транскрипции аудио с использованием Whisper
 def transcribe_audio(file_path):

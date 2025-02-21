@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   bot:
     image: kinzul/audio-messages-bot:latest
@@ -7,9 +5,9 @@ services:
     volumes:
       - whisper_models:/root/.cache/whisper
     restart: unless-stopped
+    mem_limit: 900m
     command: >
       sh -c "python -c 'import whisper; whisper.load_model(\"base\")' &&
-             python -c 'import whisper; whisper.load_model(\"large\")' &&
              python bot.py"
 
 volumes:
