@@ -1,0 +1,37 @@
+# Логи
+logs/
+*.log
+
+# Кэш Python
+__pycache__/
+*.py[cod]
+
+# Временные файлы
+*.tmp
+*.temp
+
+# Конфигурационные файлы (если не нужно коммитить)
+config.ini
+
+# Базы данных
+*.db
+*.sqlite
+
+# Модели Whisper (кеш)
+/root/.cache/whisper/
+
+# IDE файлы
+.vscode/
+.idea/
+
+# Вендорные зависимости
+venv/
+env/
+ENV/
+
+# Docker-файлы
+docker-compose.override.yml
+
+# Системные файлы
+.DS_Store
+Thumbs.db 
