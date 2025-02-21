@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  bot:
+    image: kinzul/audio-messages-bot:latest
+    container_name: whisper_bot
+    volumes:
+      - whisper_models:/root/.cache/whisper
+    restart: unless-stopped
+    command: >
+      sh -c "python -c 'import whisper; whisper.load_model(\"base\")' &&
+             python -c 'import whisper; whisper.load_model(\"large\")' &&
+             python bot.py"
+
+volumes:
+  whisper_models: 

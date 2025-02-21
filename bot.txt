@@ -11,10 +11,19 @@ import sys
 import whisper
 
 # Настройка логирования
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log'),
+        logging.StreamHandler()
+    ]
+)
 
-# Установите уровень логирования для httpx на WARNING, чтобы скрыть информационные сообщения
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
+# Используйте logger вместо print
+logger.info("Бот запущен")
 
 # Загрузка конфигурации
 config = configparser.ConfigParser()
@@ -47,28 +56,20 @@ is_local_mode = '-local' in sys.argv
 # Функция для загрузки модели Whisper
 def load_whisper_model():
     global whisper_model
-    model_name = "base" if is_test_mode else "large"
-    
-    # Проверка наличия модели
-    model_path = os.path.join(os.path.expanduser('~'), '.cache', 'whisper', f'{model_name}.pt')
-    if not os.path.exists(model_path):
-        logging.info(f"Модель {model_name} не найдена. Начинаем загрузку...")
-        whisper_model = whisper.load_model(model_name)
-        logging.info(f"Модель Whisper '{model_name}' успешно загружена.")
-    else:
-        logging.info(f"Используем существующую модель {model_name} из кэша")
-        whisper_model = whisper.load_model(model_name, download_root='/root/.cache/whisper')
+    model_name = "base" if is_test_mode else "large"  # Используем базовую модель в тестовом режиме
+    whisper_model = whisper.load_model(model_name)  # Загрузка модели
+    logger.info(f"Модель Whisper '{model_name}' загружена.")
 
 # Функция для транскрипции аудио с использованием Whisper
 def transcribe_audio(file_path):
     try:
-        logging.info(f"Начало транскрипции аудио с Whisper: {file_path}")
+        logger.info(f"Начало транскрипции аудио с Whisper: {file_path}")
         result = whisper_model.transcribe(file_path)  # Используем загруженную модель
         text = result['text']
-        logging.info("Транскрипция с Whisper завершена успешно.")
+        logger.info("Транскрипция с Whisper завершена успешно.")
         return text
     except Exception as e:
-        logging.error(f"Ошибка транскрипции аудио с Whisper: {e}")
+        logger.error(f"Ошибка транскрипции аудио с Whisper: {e}")
         return ""
 
 # Функция для обработки текста AI
@@ -85,7 +86,7 @@ def process_text(text):
         summary = response.choices[0].message['content'].strip()
         return summary, text  # Возвращаем краткий пересказ и очищенный текст
     except Exception as e:
-        logging.error(f"Ошибка обработки текста AI: {e}")
+        logger.error(f"Ошибка обработки текста AI: {e}")
         return "", text
 
 # Обработчик команды /start
@@ -116,7 +117,7 @@ async def button(update: Update, context: CallbackContext) -> None:
                     try:
                         await query.message.reply_text(chunk)  # Используем await
                     except Exception as e:
-                        logging.error(f"Ошибка отправки сообщения: {e}")
+                        logger.error(f"Ошибка отправки сообщения: {e}")
                         all_sent = False
                         break
                 if all_sent:
@@ -131,20 +132,20 @@ async def change_mode(update: Update, context: CallbackContext) -> None:
     message_text = update.message.text.lower()
 
     # Логирование полученной команды
-    logging.info(f"Получена команда изменения режима: {message_text}")
+    logger.info(f"Получена команда изменения режима: {message_text}")
 
     if "set mode local" in message_text:
         current_modes.add("local")
         await update.message.reply_text("Режим 'local' активирован.")
-        logging.info("Режим 'local' активирован.")
+        logger.info("Режим 'local' активирован.")
     if "set mode test" in message_text:
         current_modes.add("test")
         await update.message.reply_text("Режим 'test' активирован.")
-        logging.info("Режим 'test' активирован.")
+        logger.info("Режим 'test' активирован.")
     if "set mode default" in message_text:
         current_modes.clear()
         await update.message.reply_text("Режимы сброшены до значений по умолчанию.")
-        logging.info("Режимы сброшены до значений по умолчанию.")
+        logger.info("Режимы сброшены до значений по умолчанию.")
 
     # Обновление переменных is_local_mode и is_test_mode
     is_local_mode = "local" in current_modes
@@ -152,7 +153,7 @@ async def change_mode(update: Update, context: CallbackContext) -> None:
 
     if not current_modes:
         await update.message.reply_text("Неизвестная команда. Используйте 'set mode local', 'set mode test', 'set mode default', или их комбинации.")
-        logging.info("Неизвестная команда получена.")
+        logger.info("Неизвестная команда получена.")
 
 # Обработчик текстовых сообщений для изменения режимов
 async def handle_text(update: Update, context: CallbackContext) -> None:
